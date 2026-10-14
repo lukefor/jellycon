@@ -1,9 +1,21 @@
 name: Release JellyCon (fork)
 
+# Builds the py2 and py3 addon zips and attaches them to a GitHub release.
+# - Pushing a tag (including one created from the GitHub releases page)
+#   attaches the zips to that tag's release, creating the release if needed.
+# - Pushing a branch that changes release.yaml or this workflow attaches the
+#   zips to an existing release named after the release.yaml version
+#   ("<version>" or "v<version>"). It never creates tags or releases.
+
 on:
   push:
     tags:
-      - 'v*'
+      - '*'
+    branches:
+      - '**'
+    paths:
+      - release.yaml
+      - .github/workflows/release-fork.yaml
 
 permissions:
   contents: write
@@ -45,22 +57,53 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Python 3.x
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: python -m pip install pyyaml
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
-      - name: Write release notes
+      - name: Attach zips to release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python -c "import yaml; print(yaml.safe_load(open('release.yaml'))['changelog'])" > notes.md
 
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          gh release create "$TAG" dist/*.zip \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "JellyCon $TAG" \
-            --notes-file notes.md
+          release_exists() {
+            gh release view "$1" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1
+          }
+
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+            if ! release_exists "$TAG"; then
+              gh release create "$TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --verify-tag \
+                --title "JellyCon $TAG" \
+                --notes-file notes.md
+            fi
+          else
+            VERSION="$(python -c "import yaml; print(yaml.safe_load(open('release.yaml'))['version'])")"
+            TAG=""
+            for candidate in "$VERSION" "v$VERSION"; do
+              if release_exists "$candidate"; then
+                TAG="$candidate"
+                break
+              fi
+            done
+            if [ -z "$TAG" ]; then
+              echo "No release found for version $VERSION, nothing to attach"
+              exit 0
+            fi
+          fi
+
+          echo "Attaching zips to release $TAG"
+          gh release upload "$TAG" dist/*.zip --repo "$GITHUB_REPOSITORY" --clobber
