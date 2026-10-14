@@ -1358,6 +1358,8 @@ def show_widgets():
                             'plugin://plugin.video.jellycon/?mode=WIDGET_CONTENT&type=recent_tvshows')
     add_menu_directory_item(translate_string(30455) + item_limit_text,
                             'plugin://plugin.video.jellycon/?mode=WIDGET_CONTENT&type=random_tvshows')
+    add_menu_directory_item(translate_string(30683) + item_limit_text,
+                            'plugin://plugin.video.jellycon/?mode=WIDGET_CONTENT&type=inprogress_tvshows')
     add_menu_directory_item(translate_string(30263) + item_limit_text,
                             'plugin://plugin.video.jellycon/?mode=WIDGET_CONTENT&type=recent_episodes')
     add_menu_directory_item(translate_string(30264) + item_limit_text,

@@ -366,6 +366,40 @@ def get_widget_content_cast(handle, params):
     xbmcplugin.endOfDirectory(handle, cacheToDisc=False)
 
 
+def get_recently_played_series_ids(user_id, item_limit):
+    # Walk the episode play history, newest first, and collect the
+    # series ids in the order they were last watched
+    url_params = {}
+    url_params["Recursive"] = True
+    url_params["IncludeItemTypes"] = "Episode"
+    url_params["SortBy"] = "DatePlayed"
+    url_params["SortOrder"] = "Descending"
+    url_params["IsVirtualUnaired"] = False
+    url_params["IsMissing"] = False
+    url_params["EnableImages"] = False
+    url_params["EnableUserData"] = True
+    # Several episodes per show are likely, so look further back than the
+    # number of shows requested
+    url_params["Limit"] = max(100, item_limit * 10)
+
+    url = get_jellyfin_url("/Users/{}/Items".format(user_id), url_params)
+    results = api.get(url)
+
+    series_ids = []
+    if results is not None:
+        for item in results.get("Items", []):
+            user_data = item.get("UserData") or {}
+            series_id = item.get("SeriesId")
+            # Episodes without a played date have never been watched
+            if not user_data.get("LastPlayedDate"):
+                continue
+            if series_id and series_id not in series_ids:
+                series_ids.append(series_id)
+
+    log.debug("get_recently_played_series_ids: {0}".format(series_ids))
+    return series_ids
+
+
 @timer
 def get_widget_content(handle, params):
     log.debug("getWigetContent Called: {0}".format(params))
@@ -438,6 +472,18 @@ def get_widget_content(handle, params):
         url_params["IncludeItemTypes"] = "Episode"
         url_params["ImageTypeLimit"] = 1
         url_params["Limit"] = item_limit
+
+    elif widget_type == "inprogress_tvshows":
+        xbmcplugin.setContent(handle, 'tvshows')
+        series_ids = get_recently_played_series_ids(user_id, item_limit)
+        url_params["Ids"] = ",".join(series_ids)
+        url_params["Recursive"] = True
+        url_params["IncludeItemTypes"] = "Series"
+        # Only keep shows that still have unwatched episodes
+        url_params["IsPlayed"] = False
+        # Filtering happens server side so request every candidate and
+        # trim to the item limit after restoring the last played order
+        url_params["Limit"] = max(len(series_ids), 1)
 
     elif widget_type == "recent_episodes":
         xbmcplugin.setContent(handle, 'episodes')
@@ -567,8 +613,18 @@ def get_widget_content(handle, params):
             params.get('type', '') == 'nextup_episodes'):
         params["name_format"] = "Episode|episode_name_format"
 
-    list_items, detected_type, total_records = process_directory(
-        items_url, None, params, use_cached_widget_data)
+    if widget_type == "inprogress_tvshows" and not series_ids:
+        list_items, detected_type = [], None
+    else:
+        list_items, detected_type, total_records = process_directory(
+            items_url, None, params, use_cached_widget_data)
+
+    # The server returns series by name, restore the last played order
+    if widget_type == "inprogress_tvshows" and list_items:
+        series_order = {series_id: index for index, series_id in enumerate(series_ids)}
+        list_items.sort(key=lambda i: series_order.get(
+            i[1].getProperty("id"), len(series_order)))
+        list_items = list_items[:item_limit]
 
     # Combine In Progress and Next Up Episodes, add next up after In Progress
     if widget_type == "nextup_episodes":
