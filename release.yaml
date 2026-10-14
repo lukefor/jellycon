@@ -1,5 +1,9 @@
-version: '1.0.2'
+version: '1.0.2.1'
 changelog: |-
+  New Features
+  ------------
+  + Add "TV Shows - In Progress" widget that opens the series view (#392)
+
   Bug Fixes
   ---------
   + Accurately report playback on back-to-back plays (#447) @mcarlton00
