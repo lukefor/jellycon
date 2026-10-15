@@ -4,8 +4,9 @@ name: Release JellyCon (fork)
 # - Pushing a tag (including one created from the GitHub releases page)
 #   attaches the zips to that tag's release, creating the release if needed.
 # - Pushing a branch that changes release.yaml or this workflow attaches the
-#   zips to an existing release named after the release.yaml version
-#   ("<version>" or "v<version>"). It never creates tags or releases.
+#   zips to the release named after the release.yaml version ("<version>" or
+#   "v<version>"). If neither exists, it creates release "<version>" on the
+#   pushed commit, so bumping the version on a branch publishes a release.
 
 on:
   push:
@@ -100,8 +101,13 @@ jobs:
               fi
             done
             if [ -z "$TAG" ]; then
-              echo "No release found for version $VERSION, nothing to attach"
-              exit 0
+              TAG="$VERSION"
+              echo "Creating release $TAG on $GITHUB_SHA"
+              gh release create "$TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --target "$GITHUB_SHA" \
+                --title "JellyCon $TAG" \
+                --notes-file notes.md
             fi
           fi
 
