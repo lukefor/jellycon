@@ -366,18 +366,20 @@ def get_widget_content_cast(handle, params):
     xbmcplugin.endOfDirectory(handle, cacheToDisc=False)
 
 
-def get_recently_played_series_ids(user_id, item_limit):
-    # Walk the episode play history, newest first, and collect the
-    # series ids in the order they were last watched
+def get_series_ids_from_episodes(user_id, item_limit, sort_by, hide_watched=False):
+    # Walk episodes newest first by sort_by (DatePlayed or DateCreated) and
+    # collect their series ids in that order
     url_params = {}
     url_params["Recursive"] = True
     url_params["IncludeItemTypes"] = "Episode"
-    url_params["SortBy"] = "DatePlayed"
+    url_params["SortBy"] = sort_by
     url_params["SortOrder"] = "Descending"
     url_params["IsVirtualUnaired"] = False
     url_params["IsMissing"] = False
     url_params["EnableImages"] = False
     url_params["EnableUserData"] = True
+    if hide_watched:
+        url_params["IsPlayed"] = False
     # Several episodes per show are likely, so look further back than the
     # number of shows requested
     url_params["Limit"] = max(100, item_limit * 10)
@@ -391,12 +393,12 @@ def get_recently_played_series_ids(user_id, item_limit):
             user_data = item.get("UserData") or {}
             series_id = item.get("SeriesId")
             # Episodes without a played date have never been watched
-            if not user_data.get("LastPlayedDate"):
+            if sort_by == "DatePlayed" and not user_data.get("LastPlayedDate"):
                 continue
             if series_id and series_id not in series_ids:
                 series_ids.append(series_id)
 
-    log.debug("get_recently_played_series_ids: {0}".format(series_ids))
+    log.debug("get_series_ids_from_episodes {0}: {1}".format(sort_by, series_ids))
     return series_ids
 
 
@@ -411,6 +413,8 @@ def get_widget_content(handle, params):
         "use_cached_widget_data") == "true"
 
     widget_type = params.get("type")
+    # Widgets listing shows that open the seasons view, picked via their episodes
+    series_widgets = ("recent_tvshows", "inprogress_tvshows")
     if widget_type is None:
         log.error("getWigetContent type not set")
         return
@@ -457,32 +461,23 @@ def get_widget_content(handle, params):
         xbmcplugin.setContent(handle, 'tvshows')
         url_params["Ids"] = home_window.get_property("random-tvshows")
 
-    elif widget_type == "recent_tvshows":
-        xbmcplugin.setContent(handle, 'episodes')
-        url_verb = '/Users/{}/Items/Latest'.format(user_id)
-        url_params["GroupItems"] = True
-        url_params["Limit"] = 45
-        url_params["Recursive"] = True
-        url_params["SortBy"] = "DateCreated"
-        url_params["SortOrder"] = "Descending"
-        url_params["Fields"] = get_default_filters()
-        if hide_watched:
-            url_params["IsPlayed"] = False
-        url_params["IsVirtualUnaired"] = False
-        url_params["IncludeItemTypes"] = "Episode"
-        url_params["ImageTypeLimit"] = 1
-        url_params["Limit"] = item_limit
-
-    elif widget_type == "inprogress_tvshows":
+    elif widget_type in series_widgets:
         xbmcplugin.setContent(handle, 'tvshows')
-        series_ids = get_recently_played_series_ids(user_id, item_limit)
+        if widget_type == "recent_tvshows":
+            # Shows ordered by their most recently added episode
+            series_ids = get_series_ids_from_episodes(
+                user_id, item_limit, "DateCreated", hide_watched)
+        else:
+            # Shows ordered by their most recently watched episode
+            series_ids = get_series_ids_from_episodes(
+                user_id, item_limit, "DatePlayed")
+            # Only keep shows that still have unwatched episodes
+            url_params["IsPlayed"] = False
         url_params["Ids"] = ",".join(series_ids)
         url_params["Recursive"] = True
         url_params["IncludeItemTypes"] = "Series"
-        # Only keep shows that still have unwatched episodes
-        url_params["IsPlayed"] = False
-        # Filtering happens server side so request every candidate and
-        # trim to the item limit after restoring the last played order
+        # Request every candidate and trim to the item limit after
+        # restoring the episode order
         url_params["Limit"] = max(len(series_ids), 1)
 
     elif widget_type == "recent_episodes":
@@ -613,14 +608,14 @@ def get_widget_content(handle, params):
             params.get('type', '') == 'nextup_episodes'):
         params["name_format"] = "Episode|episode_name_format"
 
-    if widget_type == "inprogress_tvshows" and not series_ids:
+    if widget_type in series_widgets and not series_ids:
         list_items, detected_type = [], None
     else:
         list_items, detected_type, total_records = process_directory(
             items_url, None, params, use_cached_widget_data)
 
-    # The server returns series by name, restore the last played order
-    if widget_type == "inprogress_tvshows" and list_items:
+    # The server returns series by name, restore the episode order
+    if widget_type in series_widgets and list_items:
         series_order = {series_id: index for index, series_id in enumerate(series_ids)}
         list_items.sort(key=lambda i: series_order.get(
             i[1].getProperty("id"), len(series_order)))

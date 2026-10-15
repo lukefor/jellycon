@@ -1,8 +1,9 @@
-version: '1.0.2.1'
+version: '1.0.2.2'
 changelog: |-
   New Features
   ------------
   + Add "TV Shows - In Progress" widget that opens the series view (#392)
+  + "TV Shows - Latest" widget now lists shows that open the series view
 
   Bug Fixes
   ---------

@@ -104,7 +104,7 @@
 					</include>
 					<control type="grouplist" id="4001">
                         <include>WidgetGroupListCommon</include>
-						<include content="WidgetListEpisodes" condition="true">
+						<include content="WidgetListPoster" condition="true">
 							<param name="content_path" value="plugin://plugin.video.jellycon?mode=WIDGET_CONTENT&amp;type=recent_tvshows&amp;reload=$INFO[Window(Home).Property(plugin.video.jellycon-jellycon_widget_reload)]"/>
 							<param name="widget_header" value="Recently Updated Shows"/>
 							<param name="widget_target" value="videos"/>
