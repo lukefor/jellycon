@@ -1,9 +1,13 @@
-version: '1.0.2.3'
+version: '1.0.2.4'
 changelog: |-
   New Features
   ------------
   + Add "TV Shows - In Progress" widget that opens the series view (#392)
   + "TV Shows - Latest" widget now lists shows that open the series view
+
+  Bug Fixes
+  ---------
+  + Stop the background service when Kodi asks it to (addon update, reinstall or disable)
 
   Bug Fixes
   ---------

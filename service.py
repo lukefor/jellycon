@@ -119,7 +119,11 @@ prev_user = home_window.get_property("user_name")
 first_run = True
 home_window.set_property('exit', 'False')
 
-while home_window.get_property('exit') == 'False':
+# Kodi asks the service to stop through abortRequested, both on shutdown and
+# when the addon is updated, reinstalled or disabled
+abort_monitor = xbmc.Monitor()
+
+while home_window.get_property('exit') == 'False' and not abort_monitor.abortRequested():
     try:
         if xbmc.Player().isPlaying():
             last_random_movie_update = time.time() - (random_movie_list_interval - 15)
@@ -189,7 +193,8 @@ while home_window.get_property('exit') == 'False':
         log.error("{0}".format(traceback.format_exc()))
 
     first_run = False
-    xbmc.sleep(1000)
+    if abort_monitor.waitForAbort(1):
+        break
 
 image_server.stop()
 
